@@ -1,0 +1,8 @@
+## Falta implementar los demas microservicios, si es practica , notificaciones, aprendizaje usuarios , aqui se estaria implementando 
+## pero tambien se pone en el config server para que entienda que se esta configurando en la red de nuestro proyecto
+
+spring: 
+ config:
+    import: optional:configserver:http://localhost:8888
+ application:
+    name: gateway-service
