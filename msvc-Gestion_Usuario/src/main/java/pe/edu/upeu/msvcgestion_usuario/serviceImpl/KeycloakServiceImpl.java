@@ -199,6 +199,37 @@ private final Keycloak keycloak;
         }
     }
     
+    // NUEVO METODO
+
+ @Override
+    public UserRepresentation getUserFromKeycloak(String keycloakId) {
+        log.info("Getting user from Keycloak: {}", keycloakId);
+        
+        try {
+            UsersResource users = keycloak.realm(realm).users();
+            UserRepresentation user = users.get(keycloakId).toRepresentation();
+            
+            if (user == null) {
+                throw new RuntimeException("Usuario no encontrado en Keycloak");
+            }
+            
+            return user;
+            
+        } catch (Exception e) {
+            log.error("Error getting user from Keycloak: {}", e.getMessage());
+            throw new RuntimeException("Error obteniendo datos de Keycloak: " + e.getMessage());
+        }
+    }
+    
+
+
+
+
+
+
+
+
+
     // ===== MÉTODOS AUXILIARES PRIVADOS =====
     
     private UserRepresentation buildUserRepresentation(UsuarioRegistroDTO dto) {

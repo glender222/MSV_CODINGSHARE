@@ -1,5 +1,7 @@
 package pe.edu.upeu.msvcgestion_usuario.service;
 
+import org.keycloak.representations.idm.UserRepresentation;
+
 import pe.edu.upeu.msvcgestion_usuario.entity.dto.UsuarioRegistroDTO;
 
 public interface KeycloakService {
@@ -19,4 +21,9 @@ public interface KeycloakService {
     void updateUserPassword(String keycloakId, String newPassword);
     
     void enableDisableUser(String keycloakId, boolean enabled);
-}
+
+// nuevo  para jalar datos del keycloak , analizar me ovlide despues y me dan lapito :()
+       UserRepresentation getUserFromKeycloak(String keycloakId);
+
+
+  }

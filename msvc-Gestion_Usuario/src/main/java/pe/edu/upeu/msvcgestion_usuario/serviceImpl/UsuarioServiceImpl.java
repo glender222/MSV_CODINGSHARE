@@ -1,7 +1,11 @@
 package pe.edu.upeu.msvcgestion_usuario.serviceImpl;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
+import org.keycloak.representations.idm.UserRepresentation;
 //import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,36 +57,45 @@ public class UsuarioServiceImpl  extends GenericServiceImpl<Usuario, Long> imple
     @Override
     public UsuarioResponseDTO registrarUsuario(UsuarioRegistroDTO dto) {
         log.info("Registrando nuevo usuario: {}", dto.getUsername());
+          // NUEVO
+          //  CORREGIDO: Validar ANTES de crear en Keycloak  realemnte esto creo yo poner usuario si alguien lo ve
+          // cambielo no sea muy rata
+        if (usuarioRepository.existsByNombre(dto.getNombre())) {
+            throw new RuntimeException("Nombre ya existe en la bd local");
+        }
         
+        String keycloakId = null;
         try {
-            // nueva validacion : verifica que el nombre no exista en la bd local
-            if (usuarioRepository.existsByNombre(dto.getNombre())) {
-                throw new RuntimeException("Nombre ya existe en la bd local");
-            }
-
-
             // 1. Crear en Keycloak primero
-            String keycloakId = keycloakService.createUserInKeycloak(dto);
+            keycloakId = keycloakService.createUserInKeycloak(dto);
             
             // 2. Crear en BD local
             Usuario usuario = new Usuario();
             usuario.setKeycloakId(keycloakId);
-            // nuevo
             usuario.setNombre(dto.getNombre());
-            
             usuario.setIdioma("español");
             usuario.setTipoSuscripcion(TipoSuscripcion.GRATUITO);
             usuario.setRecibirNotificaciones(true);
             usuario.setEstado(EstadoUsuario.ACTIVO);
             
-                
-            Usuario savedUsuario = save(usuario); // ← Usa GenericService
+            Usuario savedUsuario = save(usuario);
             
             log.info("Usuario registrado exitosamente con ID: {}", savedUsuario.getId());
             return mapToResponseDTO(savedUsuario);
             
         } catch (Exception e) {
             log.error("Error registrando usuario: {}", e.getMessage());
+            // NUEVO
+            //  CORREGIDO: Rollback - eliminar de Keycloak si falló la BD
+            if (keycloakId != null) {
+                try {
+                    keycloakService.deleteUserFromKeycloak(keycloakId);
+                    log.info("Usuario eliminado de Keycloak por rollback: {}", keycloakId);
+                } catch (Exception rollbackError) {
+                    log.error("Error en rollback de Keycloak: {}", rollbackError.getMessage());
+                }
+            }
+            
             throw new RuntimeException("Error al registrar usuario: " + e.getMessage());
         }
     }
@@ -94,25 +107,48 @@ public class UsuarioServiceImpl  extends GenericServiceImpl<Usuario, Long> imple
         return mapToResponseDTO(usuario);
     }
     
+
+    // NUEVO CORREGIDO verificar luego me olvido :()
     @Override
     public UsuarioCompletoDTO obtenerUsuarioCompleto(String keycloakId) {
-        // Este método se implementará cuando tengamos JWT tokens
-        // Por ahora solo datos de BD
-        Usuario usuario = usuarioRepository.findByKeycloakId(keycloakId)
-            .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado"));
+       log.info("Obteniendo perfil completo para keycloakId: {}", keycloakId);
+        
+        try {
+            // 1. Obtener datos de BD local
+            Usuario usuario = usuarioRepository.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado en BD local"));
             
-        return UsuarioCompletoDTO.builder()
-            .id(usuario.getId())
-            .keycloakId(usuario.getKeycloakId())
-            .nombre(usuario.getNombre()) // nuevo
-            .idioma(usuario.getIdioma())
-            .fotoPerfil(usuario.getFotoPerfil())
-            .biografia(usuario.getBiografia())
-            .tipoSuscripcion(usuario.getTipoSuscripcion())
-            .recibirNotificaciones(usuario.getRecibirNotificaciones())
-            .fechaCreacion(usuario.getFechaCreacion())
-            .estado(usuario.getEstado())
-            .build();
+            // 2. Obtener datos de Keycloak
+            UserRepresentation keycloakUser = keycloakService.getUserFromKeycloak(keycloakId);
+            
+            // 3. Extraer atributos personalizados de Keycloak
+            Map<String, List<String>> attributes = keycloakUser.getAttributes();
+            
+            return UsuarioCompletoDTO.builder()
+                // Datos de Keycloak
+                .username(keycloakUser.getUsername())
+                .email(keycloakUser.getEmail())
+                .apellido(getAttributeValue(attributes, "apellido"))
+                .pais(getAttributeValue(attributes, "pais"))
+                .fechaNacimiento(parseDate(getAttributeValue(attributes, "fechaNacimiento")))
+                
+                // Datos de BD local
+                .id(usuario.getId())
+                .keycloakId(usuario.getKeycloakId())
+                .nombre(usuario.getNombre())
+                .idioma(usuario.getIdioma())
+                .fotoPerfil(usuario.getFotoPerfil())
+                .biografia(usuario.getBiografia())
+                .tipoSuscripcion(usuario.getTipoSuscripcion())
+                .recibirNotificaciones(usuario.getRecibirNotificaciones())
+                .fechaCreacion(usuario.getFechaCreacion())
+                .estado(usuario.getEstado())
+                .build();
+                
+        } catch (Exception e) {
+            log.error("Error obteniendo perfil completo: {}", e.getMessage());
+            throw new RuntimeException("Error obteniendo perfil completo: " + e.getMessage());
+        }
     }
     
     @Override
@@ -145,7 +181,29 @@ public class UsuarioServiceImpl  extends GenericServiceImpl<Usuario, Long> imple
             .build();
     }
     
- 
+
+// DE AQUI PARA ABAJO NUEVO juan me la mama
+
+  
+    private String getAttributeValue(Map<String, List<String>> attributes, String key) {
+        if (attributes != null && attributes.containsKey(key)) {
+            List<String> values = attributes.get(key);
+            return values != null && !values.isEmpty() ? values.get(0) : null;
+        }
+        return null;
+    }
+    
+    private LocalDate parseDate(String dateStr) {
+        if (dateStr == null || dateStr.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(dateStr);
+        } catch (Exception e) {
+            log.warn("Error parsing date: {}", dateStr);
+            return null;
+        }
+    }
 
     
 }

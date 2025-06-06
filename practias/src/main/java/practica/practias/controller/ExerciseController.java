@@ -41,10 +41,9 @@ public class ExerciseController {
         this.permisosService = permisosService;
         this.jwtUtils = jwtUtils;
     }
+  
+
     
-    /**
-     * Obtener TODOS los ejercicios (solo para admin/testing)
-     */
     @GetMapping("/ALL")
     public ResponseEntity<List<Map<String, Object>>> getAllEjercicios() {
         List<Map<String, Object>> ejercicios = exercisesService.getAllExercises()
@@ -62,9 +61,8 @@ public class ExerciseController {
         return ResponseEntity.ok(ejercicios);
     }
     
-    /**
-     * Obtener ejercicios según tipo de usuario (NUEVO ENDPOINT PRINCIPAL)
-     */
+  
+
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> obtenerEjercicios(
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
