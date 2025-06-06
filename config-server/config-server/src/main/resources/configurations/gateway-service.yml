@@ -13,21 +13,40 @@ spring:
           enabled: true
           lower-case-service-id: true  # ← AGREGAR esta línea
       routes: 
-        - id: practica-service
-          uri: lb://practica-service  # ← Usar el nombre exacto del servicio
+        # Ruta para ejercicios
+        - id: practica-service-ejercicios
+          uri: lb://practica-service
           predicates:
             - Path=/api/v1/ejercicios/**
             
+        # Ruta para soluciones  
         - id: practica-service-soluciones
           uri: lb://practica-service
           predicates:
             - Path=/api/v1/soluciones/**
       
+        # Ruta para usuarios
         - id: usuario-service
           uri: lb://usuario-service
           predicates:
              - Path=/api/v1/usuarios/**
 
+      # CORS básico para frontend
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: 
+              - "http://localhost:3000"
+              - "http://localhost:4200"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - "*"
+            allowCredentials: true
 
              
         
